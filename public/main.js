@@ -44,12 +44,37 @@
     /* ── 12. MOBILE NAV ── */
     initMobileNav();
 
-    /* ── 13. HERO CAROUSEL ── */
-    initCarousel();
+    /* ── 13. HERO SCROLL REVEAL ── */
+    initScrollReveal();
+
+    /* ── 14. HERO CARD PARALLAX ── */
+    initCardParallax();
 
     /* ── 14. PORTFOLIO CAROUSEL & MODAL ── */
     initPortfolio();
+
+    /* ── 15. HERO FLYER (connected to admin) ── */
+    initHeroFlyer();
   });
+
+  /* ════════════════════════════════════════════════════════════
+     HERO FLYER — Loads the latest flyer from admin panel
+     ════════════════════════════════════════════════════════════ */
+  function initHeroFlyer() {
+    fetch('/api/videos')
+      .then(res => res.json())
+      .then(flyers => {
+        if (flyers && flyers.length > 0) {
+          const latest = flyers[0]; // Most recent flyer (ordered by created_at DESC)
+          const heroImg = document.querySelector('.hero-property-card__image');
+          if (heroImg) {
+            heroImg.src = latest.video_url;
+            heroImg.alt = latest.title || 'Flyer destacado';
+          }
+        }
+      })
+      .catch(() => { /* Silently fall back to default image */ });
+  }
 
   /* ════════════════════════════════════════════════════════════
      PARTICLE CANVAS
@@ -61,7 +86,7 @@
 
     let particles = [];
     const PARTICLE_COUNT = 80;
-    const GOLD = 'rgba(212,175,55,';
+    const GOLD = 'rgba(0,61,165,'; // Changed to Remax Blue for white background
 
     function resize() {
       canvas.width  = canvas.offsetWidth;
@@ -509,11 +534,11 @@
      HERO MOUSE PARALLAX
      ════════════════════════════════════════════════════════════ */
   function initHeroParallax() {
-    const heroVisual = document.querySelector('.hero-visual');
-    const pills = document.querySelectorAll('.pill');
-    const houseImg = document.getElementById('heroHouseImg');
+    const heroCard = document.getElementById('heroPropertyCard');
+    if (!heroCard) return;
 
-    if (!heroVisual) return;
+    /* Respect prefers-reduced-motion */
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     let mouseX = 0, mouseY = 0;
     let targetX = 0, targetY = 0;
@@ -529,16 +554,8 @@
       targetX += (mouseX - targetX) * 0.06;
       targetY += (mouseY - targetY) * 0.06;
 
-      if (houseImg) {
-        houseImg.style.transform =
-          `translateX(${targetX * -12}px) translateY(${targetY * -8}px)`;
-      }
-
-      pills.forEach((pill, i) => {
-        const factor = (i + 1) * 5;
-        pill.style.transform =
-          `translateX(${targetX * factor}px) translateY(${targetY * factor}px)`;
-      });
+      heroCard.style.transform =
+        `translateX(${targetX * -8}px) translateY(${targetY * -6}px)`;
 
       requestAnimationFrame(animate);
     }
@@ -594,37 +611,6 @@
       ease: 'power3.out',
     });
 
-    // Parallax on pills during scroll
-    gsap.to('.pill--1', {
-      scrollTrigger: {
-        trigger: '.hero',
-        start: 'top top',
-        end: 'bottom top',
-        scrub: 1.5,
-      },
-      y: -60,
-    });
-
-    gsap.to('.pill--2', {
-      scrollTrigger: {
-        trigger: '.hero',
-        start: 'top top',
-        end: 'bottom top',
-        scrub: 2,
-      },
-      y: -40,
-    });
-
-    gsap.to('.pill--gold', {
-      scrollTrigger: {
-        trigger: '.hero',
-        start: 'top top',
-        end: 'bottom top',
-        scrub: 1,
-      },
-      y: -80,
-    });
-
     // Section title reveal
     document.querySelectorAll('.section-title').forEach(el => {
       gsap.from(el, {
@@ -641,186 +627,85 @@
   }
 
   /* ════════════════════════════════════════════════════════════
-     HERO CAROUSEL — Data-driven Slider
+     HERO SCROLL REVEAL — IntersectionObserver-driven
      ════════════════════════════════════════════════════════════ */
-  async function initCarousel() {
-    const track = document.getElementById('carouselTrack');
-    const dotsContainer = document.getElementById('carouselDots');
-    const prevBtn = document.getElementById('carouselPrev');
-    const nextBtn = document.getElementById('carouselNext');
-    if (!track || !dotsContainer) return;
+  function initScrollReveal() {
+    const revealItems = document.querySelectorAll('.scroll-reveal');
+    if (!revealItems.length) return;
 
-    /* ── Data Source (Dynamic API Fetch) ── */
-    let slides = [];
-    try {
-      const res = await fetch('/api/videos');
-      const data = await res.json();
-      if (data && data.length > 0) {
-        slides = data.map(vid => ({
-          src: vid.video_url,
-          alt: vid.title
-        }));
-      }
-    } catch (e) {
-      console.error('Error fetching videos:', e);
+    /* Respect prefers-reduced-motion */
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      revealItems.forEach(el => el.classList.add('is-visible'));
+      return;
     }
 
-    if (slides.length === 0) {
-      // Fallback
-      slides = [
-        {
-          src: 'https://www.w3schools.com/html/mov_bbb.mp4',
-          alt: 'Video de muestra',
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
         }
-      ];
-    }
-
-    let current = 0;
-
-    /* ── Build Slides ── */
-    let hasVideo = false;
-    slides.forEach((slide, i) => {
-      const div = document.createElement('div');
-      div.className = 'carousel-slide' + (i === 0 ? ' is-active' : '');
-
-      const isVideo = slide.src.match(/\.(mp4|webm|ogg|mov)$/i);
-      let media;
-      if (isVideo) {
-          hasVideo = true;
-          media = document.createElement('video');
-          media.src = slide.src;
-          media.muted = true; // Must start muted for browsers
-          media.loop = true;
-          media.playsInline = true;
-          media.className = 'carousel-video';
-          
-          // Perfectly fill the 9:16 container
-          media.style.width = '100%';
-          media.style.height = '100%';
-          media.style.objectFit = 'cover';
-      } else {
-          media = document.createElement('img');
-          media.src = slide.src;
-          media.alt = slide.alt;
-          media.loading = i === 0 ? 'eager' : 'lazy';
-          media.draggable = false;
-          media.style.width = '100%';
-          media.style.height = '100%';
-          media.style.objectFit = 'cover';
-      }
-      
-      // Removed fullscreen click listener as per user request
-      
-      div.appendChild(media);
-      track.appendChild(div);
-
-      /* Dot */
-      const dot = document.createElement('button');
-      dot.className = 'carousel-dot' + (i === 0 ? ' is-active' : '');
-      dot.setAttribute('aria-label', `Ir a imagen ${i + 1}`);
-      dot.addEventListener('click', () => goTo(i));
-      dotsContainer.appendChild(dot);
+      });
+    }, {
+      threshold: 0.15,
+      rootMargin: '0px 0px -40px 0px'
     });
 
-    // Add sound toggle button if there are videos
-    if (hasVideo) {
-      const soundBtn = document.createElement('button');
-      soundBtn.innerHTML = '🔇';
-      soundBtn.style.position = 'absolute';
-      soundBtn.style.top = '16px';
-      soundBtn.style.right = '16px';
-      soundBtn.style.zIndex = '100';
-      soundBtn.style.background = 'rgba(0,0,0,0.6)';
-      soundBtn.style.color = '#fff';
-      soundBtn.style.border = '1px solid rgba(255,255,255,0.2)';
-      soundBtn.style.width = '32px';
-      soundBtn.style.height = '32px';
-      soundBtn.style.borderRadius = '50%';
-      soundBtn.style.cursor = 'pointer';
-      soundBtn.style.fontSize = '1rem';
-      soundBtn.style.display = 'flex';
-      soundBtn.style.alignItems = 'center';
-      soundBtn.style.justifyContent = 'center';
-      soundBtn.style.backdropFilter = 'blur(8px)';
-      soundBtn.title = "Activar Sonido";
-      
-      let isMuted = true;
-      soundBtn.addEventListener('click', (e) => {
-        isMuted = !isMuted;
-        soundBtn.innerHTML = isMuted ? '🔇' : '🔊';
-        soundBtn.title = isMuted ? "Activar Sonido" : "Silenciar";
-        document.querySelectorAll('.carousel-video').forEach(vid => {
-          vid.muted = isMuted;
-        });
-      });
-      
-      document.getElementById('heroCarousel').appendChild(soundBtn);
-    }
-
-    const allSlides = track.querySelectorAll('.carousel-slide');
-    const allDots = dotsContainer.querySelectorAll('.carousel-dot');
-
-    function goTo(index) {
-      if (index < 0) index = slides.length - 1;
-      if (index >= slides.length) index = 0;
-
-      current = index;
-      track.style.transform = `translateX(-${current * 100}%)`;
-
-      allSlides.forEach((s, i) => {
-        s.classList.toggle('is-active', i === current);
-        
-        // Handle video playback so they don't overlap sound
-        const video = s.querySelector('video');
-        if (video) {
-          if (i === current) {
-            video.currentTime = 0; // Restart video when sliding to it
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(e => console.log('Autoplay prevented', e));
-            }
-          } else {
-            video.pause();
-          }
-        }
-      });
-      allDots.forEach((d, i) => d.classList.toggle('is-active', i === current));
-    }
-
-    /* ── Arrows ── */
-    if (prevBtn) prevBtn.addEventListener('click', () => { goTo(current - 1); });
-    if (nextBtn) nextBtn.addEventListener('click', () => { goTo(current + 1); });
-
-    /* ── Touch / Swipe ── */
-    let touchStartX = 0;
-    track.addEventListener('touchstart', (e) => {
-      touchStartX = e.touches[0].clientX;
-    }, { passive: true });
-
-    track.addEventListener('touchend', (e) => {
-      const diff = touchStartX - e.changedTouches[0].clientX;
-      if (Math.abs(diff) > 40) {
-        goTo(diff > 0 ? current + 1 : current - 1);
-      }
-    }, { passive: true });
-
-    // Initialize first slide playback
-    goTo(0);
+    /* Stagger delays */
+    revealItems.forEach((el, i) => {
+      el.style.transitionDelay = `${i * 150}ms`;
+      observer.observe(el);
+    });
   }
 
   /* ════════════════════════════════════════════════════════════
-     HERO TEXT — Staggered Cascade Reveal
+     HERO CARD SCROLL PARALLAX
+     ════════════════════════════════════════════════════════════ */
+  function initCardParallax() {
+    const card = document.getElementById('heroPropertyCard');
+    if (!card) return;
+
+    /* Respect prefers-reduced-motion */
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let ticking = false;
+
+    function onScroll() {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const hero = document.getElementById('inicio');
+          if (!hero) { ticking = false; return; }
+
+          const heroHeight = hero.offsetHeight;
+          const progress = Math.min(scrollY / heroHeight, 1);
+
+          /* Subtle upward shift as user scrolls */
+          card.style.transform = `translateY(${progress * -40}px)`;
+
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     HERO TEXT — Staggered Cascade Reveal (Legacy fallback)
      ════════════════════════════════════════════════════════════ */
   function initHeroTitle() {
+    /* This now serves as a fallback for .hero-stagger elements only.
+       The main hero text uses .scroll-reveal handled by initScrollReveal(). */
     const staggerItems = document.querySelectorAll('.hero-stagger');
     if (!staggerItems.length) return;
 
-    // Trigger cascade after a brief initial delay for page settle
     setTimeout(() => {
       staggerItems.forEach((el, i) => {
         setTimeout(() => {
           el.classList.add('is-visible');
-        }, i * 150); // 150ms stagger between each element
+        }, i * 150);
       });
     }, 150);
   }

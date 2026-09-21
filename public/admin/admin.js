@@ -529,7 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ═══════════════════════════════════════════════════════
-    //  VIDEOS — FETCH, UPLOAD, DELETE
+    //  FLYERS — FETCH, UPLOAD, DELETE
     // ═══════════════════════════════════════════════════════
 
     async function fetchVideos() {
@@ -540,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
             videosGrid.innerHTML = '';
 
             if (videos.length === 0) {
-                videosGrid.innerHTML = '<p style="color:var(--text-secondary); grid-column:1/-1;">No hay videos subidos.</p>';
+                videosGrid.innerHTML = '<p style="color:var(--text-secondary); grid-column:1/-1;">No hay flyers subidos.</p>';
                 return;
             }
 
@@ -549,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.className = 'property-card glass';
                 card.innerHTML = `
                     <div class="card-img-wrapper">
-                        <video src="${vid.video_url}" class="property-img" autoplay muted loop playsinline></video>
+                        <img src="${vid.video_url}" alt="${vid.title}" class="property-img">
                     </div>
                     <div class="property-info">
                         <h4 class="property-title">${vid.title}</h4>
@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.querySelectorAll('.video-delete-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
-                    if (!confirm('¿Eliminar este video?')) return;
+                    if (!confirm('¿Eliminar este flyer?')) return;
                     try {
                         const res = await fetch(`/api/videos/${btn.dataset.id}`, { method: 'DELETE', headers: authHeaders() });
                         if (res.ok) fetchVideos();
@@ -573,24 +573,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
         } catch {
-            videosGrid.innerHTML = `<p style="color:var(--error);">Error cargando videos.</p>`;
+            videosGrid.innerHTML = `<p style="color:var(--error);">Error cargando flyers.</p>`;
         }
     }
 
-    // ── UPLOAD VIDEO ──
+    // ── UPLOAD FLYER ──
     openVideoUploadBtn.addEventListener('click', () => { videoModal.style.display = 'flex'; });
 
     videoUpload.addEventListener('change', function() {
         const file = this.files[0];
         if (file) {
-            videoPreviewContainer.innerHTML = `<video src="${URL.createObjectURL(file)}" class="preview-thumb" style="width:100%;max-height:200px;border-radius:8px;margin-top:12px;" autoplay muted loop playsinline></video>`;
+            videoPreviewContainer.innerHTML = `<img src="${URL.createObjectURL(file)}" class="preview-thumb" style="width:100%;max-height:200px;border-radius:8px;margin-top:12px;object-fit:contain;">`;
         }
     });
 
     videoForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const file = videoUpload.files[0];
-        if (!file) { videoError.textContent = "Selecciona un video."; videoError.hidden = false; return; }
+        if (!file) { videoError.textContent = "Selecciona una imagen."; videoError.hidden = false; return; }
 
         const formData = new FormData();
         formData.append('video', file);
@@ -617,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
             videoError.textContent = err.message || 'Error al subir';
             videoError.hidden = false;
         } finally {
-            btn.textContent = 'Subir Video';
+            btn.textContent = 'Subir Flyer';
             btn.disabled = false;
         }
     });
